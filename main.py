@@ -4,13 +4,10 @@ import os
 import re
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from os import path
 from prettytable import PrettyTable
-from jinja2 import Environment, FileSystemLoader
 import pdfkit
 import doctest
-import time
 import concurrent.futures
 from functools import partial
 
