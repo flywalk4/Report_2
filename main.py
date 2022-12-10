@@ -11,6 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 import pdfkit
 import doctest
 import time
+import concurrent.futures
 from functools import partial
 
 experienceToRus = {
@@ -735,7 +736,7 @@ def print_data(data, total_vacancies):
     cityDict.append(temp)
     return [salaryDict, cityDict]
 
-def main(file_names, prof_name):
+def main_multiprocessing(file_names, prof_name):
     """Обрабатывает и считывает вакансии в многопоточном режиме
 
         Args:
@@ -777,9 +778,62 @@ def main(file_names, prof_name):
     report = Report("graph.jpg", print_data(dict, sum(len(x[1]) for x in vacancies)), prof_name)
     pdfkit.from_string(report.html, 'report.pdf', configuration=config, options=options)
 
+def main_futures(file_names, prof_name):
+    """Обрабатывает и считывает вакансии в многопоточном режиме
+
+        Args:
+            file_names(list): Названия файлов
+            prof_name (str): Имя выбранной профессии
+    """
+    def read_get_data(prof_name, file_name):
+        dataWorker = DataWorker()
+        csvReader = CSVReader()
+        vacancies = csvReader.get_vacancies(file_name)
+        return [dataWorker.get_data(prof_name, vacancies), len(vacancies[1])]
+
+    years = []
+    total_vacancies = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        queue = {executor.submit(partial(read_get_data, prof_name), file_name): file_name for file_name in file_names}
+        for answer in concurrent.futures.as_completed(queue):
+            result = answer.result()
+            years.append(result[0])
+            total_vacancies += result[1]
+
+    cities_salary = {}
+    cities_amount = {}
+   
+    for year in years:
+        city_salary = year[5]
+        for city in city_salary:
+            city = city
+            if city not in cities_salary:
+                cities_salary[city] = city_salary[city]
+            else:
+                cities_salary[city] += city_salary[city]
+
+        city_amount = year[6]
+        for city in city_amount:
+            if city not in cities_amount:
+                cities_amount[city] = city_amount[city]
+            else:
+                cities_amount[city] += city_amount[city]
+
+    dict = {"salary": {x[0]:x[1] for x in years},
+            "amount": {x[0]:x[2] for x in years},
+            "salary_prof": {x[0]:x[3] for x in years},
+            "amount_prof": {x[0]:x[4] for x in years},
+            "salary_city": cities_salary,
+            "amount_city": cities_amount}
+    options = {'enable-local-file-access': None}
+    config = pdfkit.configuration(wkhtmltopdf=r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe')
+    report = Report("graph.jpg", print_data(dict, total_vacancies), prof_name)
+    pdfkit.from_string(report.html, 'report.pdf', configuration=config, options=options)
+
 if __name__ == '__main__':
     dir = input("Введите название папки: ")
     prof_name = input("Введите название профессии: ")
     start = time.time()
-    main(list(files(dir)), prof_name)
-    print(time.time() - start)
+    main_futures(list(files(dir)), prof_name)
+    print("Futures:", time.time() - start)
+    
