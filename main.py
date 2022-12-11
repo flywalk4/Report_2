@@ -1060,6 +1060,7 @@ def main_futures(file_names, prof_name):
             result = answer.result()
             years.append(result[0])
             total_vacancies += result[1]
+            years = sorted(years, key=lambda year: year[0])
 
     cities_salary = {}
     cities_amount = {}
